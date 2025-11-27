@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Notes App</title>
+    <!-- Load Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Dependencies for jsPDF's HTML rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        /* --- THEME SYSTEM (CSS Variables) --- */
+        :root {
+            /* Default (Light) */
+            --bg-body: #f9fafb;       /* gray-50 */
+            --bg-card: #ffffff;       /* white */
+            --bg-sidebar: #ffffff;    /* white */
+            --text-main: #1f2937;     /* gray-800 */
+            --text-muted: #6b7280;    /* gray-500 */
+            --border-color: #f3f4f6;  /* gray-100 */
+            --accent-color: #6366f1;  /* indigo-500 */
+            --accent-hover: #4f46e5;  /* indigo-600 */
+            --input-bg: #ffffff;
+            --highlight: #e0e7ff;     /* indigo-100 */
+        }
+
+        [data-theme="dark"] {
+            --bg-body: #111827;       /* gray-900 */
+            --bg-card: #1f2937;       /* gray-800 */
+            --bg-sidebar: #1f2937;    /* gray-800 */
+            --text-main: #f3f4f6;     /* gray-100 */
+            --text-muted: #9ca3af;    /* gray-400 */
+            --border-color: #374151;  /* gray-700 */
+            --accent-color: #818cf8;  /* indigo-400 */
+            --accent-hover: #6366f1;  /* indigo-500 */
+            --input-bg: #374151;
+            --highlight: #312e81;     /* indigo-900 */
+        }
+
+        [data-theme="sepia"] {
+            --bg-body: #f5e6d3;       /* Warm beige */
+            --bg-card: #fdf6e3;       /* Solarized Light-ish */
+            --bg-sidebar: #fdf6e3;
+            --text-main: #433422;     /* Dark brown */
+            --text-muted: #887a68;    /* Muted brown */
+            --border-color: #ded0bf;
+            --accent-color: #d97706;  /* amber-600 */
+            --accent-hover: #b45309;  /* amber-700 */
+            --input-bg: #fdf6e3;
+            --highlight: #fde68a;     /* amber-200 */
+        }
+
+        [data-theme="forest"] {
+            --bg-body: #051a12;       /* Very dark green */
+            --bg-card: #0c2e22;       /* Dark forest green */
+            --bg-sidebar: #0c2e22;
+            --text-main: #e2e8f0;     /* slate-200 */
+            --text-muted: #94a3b8;    /* slate-400 */
+            --border-color: #14532d;  /* green-900 */
+            --accent-color: #34d399;  /* emerald-400 */
+            --accent-hover: #10b981;  /* emerald-500 */
+            --input-bg: #14532d;
+            --highlight: #064e3b;     /* emerald-900 */
+        }
+        
+        [data-theme="cyber"] {
+            --bg-body: #000000;       /* Black */
+            --bg-card: #121212;       /* Almost Black */
+            --bg-sidebar: #0a0a0a;
+            --text-main: #00ff41;     /* Matrix Green */
+            --text-muted: #008f11;
+            --border-color: #003b00;
+            --accent-color: #d600ff;  /* Neon Purple */
+            --accent-hover: #9d00bc;
+            --input-bg: #0f0f0f;
+            --highlight: #1a1a1a;
+        }
+
+        /* Semantic Classes using Variables */
+        .app-bg { background-color: var(--bg-body); color: var(--text-main); }
+        .card-bg { background-color: var(--bg-card); color: var(--text-main); }
+        .sidebar-bg { background-color: var(--bg-sidebar); }
+        .text-primary { color: var(--text-main); }
+        .text-secondary { color: var(--text-muted); }
+        .border-theme { border-color: var(--border-color); }
+        .input-bg { background-color: var(--input-bg); }
+        .accent-text { color: var(--accent-color); }
+        .accent-bg { background-color: var(--accent-color); color: white; }
+        .accent-bg:hover { background-color: var(--accent-hover); }
+        
+        /* Specific overrides */
+        .note-item-selected {
+            background-color: var(--accent-color);
+            color: #ffffff; /* Always white on accent */
+            border-color: var(--accent-color);
+        }
+        .note-item-selected .text-secondary { color: rgba(255,255,255,0.8); }
+        .note-item-selected .text-date { color: rgba(255,255,255,0.6); }
+
+        .toolbar-btn.active-format {
+            background-color: var(--accent-color);
+            color: white !important;
+        }
+
+        /* --- Custom Image Styling in Editor --- */
+        #note-content-editor img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 10px 0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+            outline: 2px solid var(--border-color); /* Light border for contrast */
+        }
+
+        /* --- Transitions --- */
+        body, div, input, textarea, button {
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+        }
+
+        /* --- Existing Styles --- */
+        .sidebar {
+            transition: transform 0.3s ease-in-out;
+            transform: translateX(0);
+        }
+        .sidebar.hidden-mobile {
+            transform: translateX(-100%);
+            position: absolute;
+            z-index: 10;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+        @media (min-width: 640px) {
+            .sidebar.hidden-mobile {
+                transform: translateX(0);
+                position: relative;
+                box-shadow: none;
+            }
+        }
+        [contenteditable]:empty:before {
+            content: attr(placeholder);
+            color: var(--text-muted);
+            pointer-events: none;
+            display: block;
+        }
+        #note-content-editor:focus {
+            box-shadow: 0 0 0 2px var(--accent-color);
+            outline: none;
+        }
+        #note-content-editor {
+            word-wrap: break-word;
+            min-height: 200px;
+        }
+        
+        /* Modal Backdrop */
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(2px);
+            transition: opacity 0.3s ease;
+        }
+        
+        /* Custom file upload styling to make it look like a button */
+        .file-upload-wrapper {
+            position: relative;
+            display: inline-block;
+            overflow: hidden;
+            width: 100%;
+            cursor: pointer;
+        }
+        .file-upload-wrapper input[type="file"] {
+            position: absolute;
+            top: 0;
+            right: 0;
+            min-width: 100%;
+            min-height: 100%;
+            font-size: 100px;
+            text-align: right;
+            filter: alpha(opacity=0);
+            opacity: 0;
+            outline: none;
+            cursor: inherit;
+            display: block;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased app-bg h-screen overflow-hidden">
+    
+    <!-- Main Application Container -->
+    <div id="app-main" class="flex flex-col h-full">
+        
+        <!-- Header -->
+        <header class="p-4 card-bg border-b border-theme shadow-sm flex justify-between items-center flex-shrink-0 z-30 relative">
+            <h1 class="text-xl font-extrabold accent-text flex items-center">
+                <button id="toggle-sidebar" class="sm:hidden mr-3 p-1 rounded-full hover:bg-gray-100 transition duration-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16m-7 6h7" />
+                    </svg>
+                </button>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2 accent-text" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 01-1 1h-3.828l-4.243 4.243a1 1 0 01-1.414 0L4.828 17H4a2 2 0 01-2-2V4zm7 0a1 1 0 10-2 0V9a1 1 0 102 0V4z" clip-rule="evenodd" />
+                </svg>
+                NoteVault
+            </h1>
+            
+            <div class="flex items-center space-x-4">
+                
+                <!-- Theme Selector -->
+                <div class="relative group">
+                    <button id="theme-btn" class="flex items-center space-x-1 text-sm font-medium text-secondary hover:text-primary transition">
+                        <span id="current-theme-label">Theme</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <!-- Dropdown Menu -->
+                    <div class="absolute right-0 mt-2 w-40 card-bg border border-theme rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                        <div class="py-1">
+                            <button onclick="setTheme('light')" class="block w-full text-left px-4 py-2 text-sm text-primary hover:bg-gray-100 dark:hover:bg-gray-700">Light</button>
+                            <button onclick="setTheme('dark')" class="block w-full text-left px-4 py-2 text-sm text-primary hover:bg-gray-100 dark:hover:bg-gray-700">Dark</button>
+                            <button onclick="setTheme('sepia')" class="block w-full text-left px-4 py-2 text-sm text-primary hover:bg-gray-100 dark:hover:bg-gray-700">Sepia</button>
+                            <button onclick="setTheme('forest')" class="block w-full text-left px-4 py-2 text-sm text-primary hover:bg-gray-100 dark:hover:bg-gray-700">Forest</button>
+                            <button onclick="setTheme('cyber')" class="block w-full text-left px-4 py-2 text-sm text-primary hover:bg-gray-100 dark:hover:bg-gray-700">Cyber</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-xs font-medium text-secondary hidden sm:block">
+                    Data saved locally.
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="flex flex-1 overflow-hidden relative">
+            
+            <!-- Sidebar - Note List & Search -->
+            <div id="sidebar" class="sidebar hidden-mobile w-64 sidebar-bg border-r border-theme overflow-y-auto flex-shrink-0 h-full sm:relative absolute top-0 left-0 z-20">
+                <div class="p-4 flex flex-col h-full">
+                    
+                    <!-- Search Bar -->
+                    <div class="mb-4 relative">
+                        <input id="search-input" type="text" placeholder="Search notes..." 
+                               class="w-full pl-10 pr-4 py-2 border border-theme input-bg text-primary rounded-lg shadow-inner focus:ring-2 focus:ring-[var(--accent-color)] transition duration-150 outline-none placeholder-[var(--text-muted)]"
+                               oninput="filterNotes(this.value)">
+                        <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-secondary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+
+                    <!-- New Note Button -->
+                    <button id="new-note-btn" class="w-full accent-bg font-semibold py-3 px-4 rounded-xl shadow-md transition duration-150 transform hover:scale-[1.01] flex items-center justify-center mb-4 flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                        </svg>
+                        New Note
+                    </button>
+                    
+                    <!-- Note List -->
+                    <ul id="note-list" class="flex-1 overflow-y-auto space-y-2 pb-4">
+                        <!-- Note items will be injected here -->
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Editor Area -->
+            <div id="editor-area" class="flex-1 p-4 md:p-8 overflow-y-auto relative">
+                <div id="editor-container" class="h-full flex flex-col space-y-4 md:space-y-6 hidden card-bg rounded-xl shadow-lg p-4 sm:p-6 lg:p-8 border border-theme transition-colors duration-300">
+                    
+                    <!-- Editor Title and Controls -->
+                    <div class="flex justify-between items-center flex-shrink-0 flex-wrap gap-3 pb-2 border-b border-theme">
+                        <h2 class="text-2xl font-bold text-primary hidden sm:block">Editor</h2>
+                        <div class="flex items-center space-x-3">
+                            <div id="saving-status" class="text-sm font-medium opacity-0 text-green-600 transition-opacity duration-300">
+                                Saved!
+                            </div>
+                            <!-- Export Button -->
+                            <button id="export-pdf-btn" class="text-secondary hover:text-[var(--accent-color)] p-2 rounded-full transition duration-150" title="Export to PDF">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            </button>
+                            <!-- Delete Button -->
+                            <button id="delete-note-btn" class="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-red-50 transition duration-150" title="Delete Note">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Title Input -->
+                    <input id="note-title-input" type="text" placeholder="Note Title" 
+                           class="w-full text-3xl md:text-4xl font-extrabold bg-transparent text-primary border-b-2 border-theme focus:border-[var(--accent-color)] outline-none pb-2 transition-all duration-200 placeholder-[var(--text-muted)]" />
+
+                    <!-- Rich Text Editor Container -->
+                    <div class="flex flex-col flex-1 min-h-[50vh]">
+                        
+                        <!-- Rich Text Toolbar -->
+                        <div id="editor-toolbar" class="flex flex-wrap items-center space-x-2 p-3 border border-theme border-b-0 rounded-t-lg flex-shrink-0 shadow-inner" style="background-color: var(--bg-body);">
+                            
+                            <!-- Command Buttons -->
+                            <button id="bold-btn" title="Bold" class="toolbar-btn p-2 rounded-lg hover:bg-[var(--border-color)] transition duration-150 font-bold text-primary" onclick="applyFormat('bold')">B</button>
+                            <button id="italic-btn" title="Italic" class="toolbar-btn p-2 rounded-lg hover:bg-[var(--border-color)] transition duration-150 italic text-primary" onclick="applyFormat('italic')">I</button>
+                            <button id="underline-btn" title="Underline" class="toolbar-btn p-2 rounded-lg hover:bg-[var(--border-color)] transition duration-150 underline text-primary" onclick="applyFormat('underline')">U</button>
+                            <button id="strikethrough-btn" title="Strikethrough" class="toolbar-btn p-2 rounded-lg hover:bg-[var(--border-color)] transition duration-150 line-through text-primary" onclick="applyFormat('strikeThrough')">S</button>
+                            
+                            <span class="text-secondary">|</span>
+
+                            <button id="h1-btn" title="Heading 1" class="toolbar-btn p-2 rounded-lg hover:bg-[var(--border-color)] transition duration-150 font-bold text-xl text-primary" onclick="applyFormat('formatBlock', 'H1')">H1</button>
+                            <button id="h2-btn" title="Heading 2" class="toolbar-btn p-2 rounded-lg hover:bg-[var(--border-color)] transition duration-150 font-semibold text-lg text-primary" onclick="applyFormat('formatBlock', 'H2')">H2</button>
+                            
+                            <span class="text-secondary">|</span>
+
+                            <button id="list-btn" title="Bullet List" class="toolbar-btn p-2 rounded-lg hover:bg-[var(--border-color)] transition duration-150 text-primary" onclick="applyFormat('insertUnorderedList')">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                                </svg>
+                            </button>
+                            <button id="quote-btn" title="Blockquote" class="toolbar-btn p-2 rounded-lg hover:bg-[var(--border-color)] transition duration-150 text-primary" onclick="applyFormat('formatBlock', 'BLOCKQUOTE')">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h10M7 16h10M12 20h9M12 4h9M3 4h5l1 2-1 2H3V4zM3 12h5l1 2-1 2H3v-4z" />
+                                </svg>
+                            </button>
+                            
+                            <span class="text-secondary">|</span>
+                            
+                            <!-- Insert Image Button (Triggers local file picker) -->
+                            <button id="insert-image-btn" title="Insert Local Image" class="toolbar-btn p-2 rounded-lg hover:bg-[var(--border-color)] transition duration-150 text-primary" onclick="document.getElementById('image-file-input').click()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-9-2h.01M5 19h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            </button>
+                            
+                            <!-- Hidden File Input for Image Upload -->
+                            <input type="file" id="image-file-input" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+                            
+                        </div>
+                        
+                        <!-- Content Editor -->
+                        <div id="note-content-editor" 
+                            contenteditable="true" 
+                            placeholder="Start writing..." 
+                            class="flex-1 w-full p-6 text-lg leading-relaxed rounded-b-lg border border-theme focus:outline-none transition-shadow duration-200 card-bg text-primary" 
+                            style="min-height: 200px;">
+                        </div>
+                    </div>
+                    
+                    <!-- Footer Info -->
+                    <div class="flex justify-between items-center text-xs text-secondary mt-2 flex-shrink-0 pt-2 border-t border-theme">
+                        <p id="last-saved-display"></p>
+                        <p id="word-count-display">Words: 0</p>
+                    </div>
+                </div>
+                
+                <!-- Welcome State -->
+                <div id="welcome-container" class="absolute inset-0 flex flex-col items-center justify-center p-4">
+                    <div class="text-center text-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-20 w-20 mb-4 accent-text mx-auto opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <h2 class="text-2xl font-semibold text-primary">Get Started with NoteVault</h2>
+                        <p class="mt-2 text-lg">Your data is safe, stored directly in your browser.</p>
+                        <p class="mt-4">Click **New Note** to begin.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Custom Modal/Message Box (Used for Confirmations and Messages) -->
+    <div id="custom-modal" class="fixed inset-0 hidden items-center justify-center z-50 modal-backdrop transition-opacity duration-300">
+        <div class="card-bg p-6 rounded-xl shadow-2xl w-full max-w-sm mx-4 transform transition-all duration-300 scale-95 opacity-0 border border-theme">
+            <h3 id="modal-title" class="text-xl font-bold mb-4 accent-text"></h3>
+            <p id="modal-content" class="mb-4 text-primary"></p>
+            <div id="modal-custom-input-container" class="mb-4 hidden">
+                 <!-- Custom input will be injected here for image URL -->
+            </div>
+            <div class="flex justify-end space-x-3 mt-4">
+                <button id="modal-cancel-btn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded-lg transition duration-150 hidden">Cancel</button>
+                <button id="modal-confirm-btn" class="accent-bg font-medium py-2 px-4 rounded-lg transition duration-150">OK</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // Global State
+        let notes = [];
+        let selectedNoteId = null;
+        let isSaving = false;
+        
+        // Configuration
+        const STORAGE_KEY = 'notevault_v2_offline';
+        const THEME_KEY = 'notevault_theme_pref'; 
+        
+        // DOM Elements
+        const htmlElement = document.documentElement;
+        const noteListEl = document.getElementById('note-list');
+        const noteTitleInput = document.getElementById('note-title-input');
+        const noteContentEditor = document.getElementById('note-content-editor');
+        const editorContainer = document.getElementById('editor-container');
+        const welcomeContainer = document.getElementById('welcome-container');
+        const savingStatusEl = document.getElementById('saving-status');
+        const lastSavedDisplay = document.getElementById('last-saved-display');
+        const wordCountDisplay = document.getElementById('word-count-display');
+        const sidebarEl = document.getElementById('sidebar');
+        const searchInput = document.getElementById('search-input');
+        const themeLabel = document.getElementById('current-theme-label');
+
+        // Modal Elements
+        const customModal = document.getElementById('custom-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalContent = document.getElementById('modal-content');
+        const modalConfirmBtn = document.getElementById('modal-confirm-btn');
+        const modalCancelBtn = document.getElementById('modal-cancel-btn');
+        const modalInner = customModal.querySelector('div');
+        const modalCustomInputContainer = document.getElementById('modal-custom-input-container');
+
+        // Store current selection range before opening modal/file picker
+        let savedRange = null;
+
+
+        // --- Custom Modal Functions (UX) ---
+        function showModal() {
+            customModal.classList.remove('hidden');
+            setTimeout(() => {
+                customModal.style.opacity = '1';
+                modalInner.classList.remove('scale-95', 'opacity-0');
+            }, 10);
+        }
+        
+        function hideModal() {
+            customModal.style.opacity = '0';
+            modalInner.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                customModal.classList.add('hidden');
+                modalCancelBtn.classList.add('hidden');
+                modalCustomInputContainer.classList.add('hidden');
+                modalCustomInputContainer.innerHTML = '';
+            }, 300);
+        }
+
+        function showMessageModal(title, message) {
+            modalTitle.textContent = title;
+            modalContent.textContent = message;
+            modalConfirmBtn.textContent = 'Close';
+            modalCancelBtn.classList.add('hidden');
+            modalConfirmBtn.onclick = hideModal;
+            showModal();
+        }
+
+        function showConfirmModal(title, message, onConfirm, onCancel = hideModal) {
+            modalTitle.textContent = title;
+            modalContent.textContent = message;
+            modalConfirmBtn.textContent = 'Confirm';
+            modalCancelBtn.textContent = 'Cancel';
+            modalCancelBtn.classList.remove('hidden');
+            modalConfirmBtn.onclick = () => { hideModal(); onConfirm(); };
+            modalCancelBtn.onclick = onCancel;
+            showModal();
+        }
+
+        // --- THEME LOGIC ---
+
+        const themes = {
+            light: 'Light',
+            dark: 'Dark',
+            sepia: 'Sepia',
+            forest: 'Forest',
+            cyber: 'Cyber'
+        };
+
+        const setTheme = (themeName) => {
+            if (!themes[themeName]) return;
+            
+            // Set data attribute for CSS variables
+            htmlElement.setAttribute('data-theme', themeName);
+            
+            // Save to local storage
+            localStorage.setItem(THEME_KEY, themeName);
+            
+            // Update label
+            themeLabel.textContent = themes[themeName];
+        };
+
+        const initTheme = () => {
+            const storedTheme = localStorage.getItem(THEME_KEY);
+            if (storedTheme && themes[storedTheme]) {
+                setTheme(storedTheme);
+            } else {
+                // Default to light
+                setTheme('light');
+            }
+        };
+
+        // --- Local Storage Persistence ---
+
+        const loadNotesFromStorage = () => {
+            const storedData = localStorage.getItem(STORAGE_KEY);
+            if (!storedData) return [];
+            try { return JSON.parse(storedData); } catch (e) { return []; }
+        };
+
+        const saveNotesToStorage = (notesArray) => {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(notesArray));
+        };
+
+        // --- Utility Functions ---
+
+        let saveTimeout = null;
+        const debouncedSaveNote = (title, content) => {
+            if (saveTimeout) clearTimeout(saveTimeout);
+            if (!isSaving) {
+                isSaving = true;
+                savingStatusEl.textContent = 'Saving...';
+                savingStatusEl.classList.remove('text-green-600', 'opacity-0');
+                savingStatusEl.classList.add('accent-text', 'opacity-100');
+            }
+            saveTimeout = setTimeout(() => {
+                saveNote(selectedNoteId, title, content);
+            }, 500);
+        };
+        
+        const generateUUID = () => {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+        
+        const getWordCount = (html) => {
+            const tempDiv = document.createElement('div');
+            // Remove image tags before counting words to avoid counting alt text as part of content words
+            tempDiv.innerHTML = html.replace(/<img[^>]*>/g,""); 
+            const plainText = tempDiv.textContent || tempDiv.innerText || '';
+            const words = plainText.trim().split(/\s+/).filter(word => word.length > 0);
+            return words.length;
+        }
+        
+        // Function to restore text selection after focus is lost (e.g., opening file picker)
+        const restoreSelection = () => {
+            if (savedRange) {
+                noteContentEditor.focus();
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(savedRange);
+                savedRange = null; // Clear the saved range
+            } else {
+                noteContentEditor.focus();
+            }
+        };
+
+        // Function to save the current text selection range
+        const saveSelection = () => {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                // Check if the selection is inside the editor
+                if (noteContentEditor.contains(selection.anchorNode)) {
+                    savedRange = selection.getRangeAt(0);
+                }
+            }
+        };
+
+
+        // --- Core Application Logic ---
+
+        const filterNotes = (searchTerm) => {
+            const term = searchTerm.toLowerCase().trim();
+            const currentNotes = loadNotesFromStorage();
+            const filteredNotes = currentNotes.filter(note => {
+                const title = (note.title || '').toLowerCase();
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = note.content || '';
+                const content = (tempDiv.textContent || tempDiv.innerText || '').toLowerCase();
+                return title.includes(term) || content.includes(term);
+            });
+            renderNoteList(filteredNotes);
+        };
+        
+        const renderNoteList = (notesToRender) => {
+             noteListEl.innerHTML = ''; 
+            
+            if (notesToRender.length === 0) {
+                noteListEl.innerHTML = `<li class="text-center py-4 text-secondary">${searchInput.value.trim() ? 'No matching notes found.' : 'No notes yet.'}</li>`;
+            }
+
+            notesToRender.forEach(note => {
+                const li = document.createElement('li');
+                li.className = 'cursor-pointer';
+
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = note.content || '';
+                const plainContent = (tempDiv.textContent || tempDiv.innerText || '').substring(0, 50).trim() || 'Empty note...';
+                
+                const formattedDate = new Date(note.updatedAt || note.createdAt).toLocaleDateString(undefined, {
+                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                });
+
+                const isSelected = selectedNoteId === note.id;
+                
+                // Dynamic classes based on selection
+                let containerClass = isSelected 
+                    ? 'note-item-selected shadow-lg' 
+                    : 'card-bg hover:bg-gray-50 dark:hover:bg-gray-700/50 text-primary border-theme';
+
+                li.innerHTML = `
+                    <div data-id="${note.id}" 
+                        class="p-3 rounded-xl transition duration-150 ease-in-out border ${containerClass}">
+                        <h3 class="font-semibold truncate text-base">
+                            ${(note.title || 'Untitled Note').trim()}
+                        </h3>
+                        <p class="text-xs mt-1 truncate ${isSelected ? 'opacity-90' : 'text-secondary'}">
+                            ${plainContent}
+                        </p>
+                        <p class="text-xs mt-2 font-mono ${isSelected ? 'opacity-70' : 'text-secondary'}">
+                            ${formattedDate}
+                        </p>
+                    </div>
+                `;
+                li.querySelector('div').addEventListener('click', () => {
+                    setSelectedNote(note.id);
+                    if (window.innerWidth < 640) sidebarEl.classList.add('hidden-mobile');
+                });
+                noteListEl.appendChild(li);
+            });
+        };
+        
+        const updateUI = () => {
+            notes.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+            
+            const searchTerm = searchInput.value.trim();
+            if (searchTerm) {
+                filterNotes(searchTerm);
+            } else {
+                renderNoteList(notes);
+            }
+
+            const selectedNote = notes.find(n => n.id === selectedNoteId);
+
+            if (selectedNote) {
+                welcomeContainer.classList.add('hidden');
+                editorContainer.classList.remove('hidden');
+
+                if (document.activeElement !== noteTitleInput) {
+                    noteTitleInput.value = selectedNote.title || '';
+                }
+
+                if (document.activeElement !== noteContentEditor) {
+                     // Use DOMPurify.sanitize to prevent XSS issues when setting innerHTML
+                     noteContentEditor.innerHTML = DOMPurify.sanitize(selectedNote.content || '', {ADD_TAGS: ['img'], ADD_ATTR: ['src', 'alt', 'style', 'width', 'height', 'onerror']}); 
+                }
+
+                if (selectedNote.updatedAt) {
+                    lastSavedDisplay.textContent = `Last saved: ${new Date(selectedNote.updatedAt).toLocaleTimeString()}`;
+                } else {
+                    lastSavedDisplay.textContent = 'Last saved: Just now';
+                }
+                
+                wordCountDisplay.textContent = `Words: ${getWordCount(selectedNote.content || '')}`;
+
+            } else {
+                welcomeContainer.classList.remove('hidden');
+                editorContainer.classList.add('hidden');
+                noteTitleInput.value = '';
+                noteContentEditor.innerHTML = ''; 
+                lastSavedDisplay.textContent = '';
+                wordCountDisplay.textContent = 'Words: 0';
+            }
+
+            if (!isSaving) {
+                savingStatusEl.textContent = 'Saved!';
+                savingStatusEl.classList.remove('accent-text');
+                savingStatusEl.classList.add('text-green-600', 'opacity-100');
+                setTimeout(() => {
+                    savingStatusEl.classList.remove('opacity-100');
+                    savingStatusEl.classList.add('opacity-0');
+                }, 1500);
+            }
+        };
+        
+        // --- State Management ---
+
+        const setSelectedNote = (noteId) => {
+            selectedNoteId = noteId;
+            searchInput.value = '';
+            updateUI();
+        };
+
+        const sortAndSetNotes = (newNotes) => {
+            notes = newNotes;
+            const noteExists = notes.some(n => n.id === selectedNoteId);
+            if (!noteExists) {
+                if (notes.length > 0) {
+                    selectedNoteId = notes.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0].id;
+                } else {
+                    selectedNoteId = null;
+                }
+            }
+            updateUI();
+        };
+
+        // --- Local CRUD Operations ---
+
+        const saveNote = (currentNoteId, currentTitle, currentContent) => {
+            if (!currentNoteId) return;
+
+            // Check for image content as well
+            if (!currentTitle.trim() && getWordCount(currentContent) === 0 && !currentContent.includes('<img')) {
+                 isSaving = false;
+                 savingStatusEl.classList.remove('opacity-100', 'accent-text');
+                 savingStatusEl.classList.add('opacity-0');
+                 return;
+            }
+
+            const now = Date.now();
+            const title = currentTitle.trim() || 'Untitled Note';
+            const noteIndex = notes.findIndex(n => n.id === currentNoteId);
+
+            // Use DOMPurify to sanitize content, allowing necessary tags like IMG
+            const sanitizedContent = DOMPurify.sanitize(currentContent, {ADD_TAGS: ['img'], ADD_ATTR: ['src', 'alt', 'style', 'width', 'height', 'onerror']});
+
+            if (noteIndex > -1) {
+                notes[noteIndex].title = title;
+                notes[noteIndex].content = sanitizedContent;
+                notes[noteIndex].updatedAt = now;
+            } else {
+                notes.push({ 
+                    id: currentNoteId, 
+                    title: title, 
+                    content: sanitizedContent, 
+                    createdAt: now, 
+                    updatedAt: now 
+                });
+            }
+
+            saveNotesToStorage(notes);
+            isSaving = false;
+            sortAndSetNotes(notes); 
+        };
+
+        const createNewNote = () => {
+            const newId = generateUUID();
+            const now = Date.now();
+            const newNote = {
+                id: newId,
+                title: 'Untitled Note',
+                content: '',
+                createdAt: now,
+                updatedAt: now,
+            };
+            notes.push(newNote);
+            saveNotesToStorage(notes);
+            setSelectedNote(newId);
+            sortAndSetNotes(notes);
+            noteTitleInput.focus();
+        };
+
+        const deleteSelectedNote = () => {
+            if (!selectedNoteId) return;
+            showConfirmModal('Confirm Deletion', 'Delete this note permanently?', () => {
+                const deletedId = selectedNoteId;
+                notes = notes.filter(n => n.id !== deletedId);
+                saveNotesToStorage(notes);
+                if (notes.length === 0) createNewNote(); 
+                else {
+                    setSelectedNote(null);
+                    sortAndSetNotes(notes);
+                }
+                showMessageModal('Success', 'Note deleted successfully.');
+            });
+        };
+        
+        // --- PDF Export (Theme & Image Aware) ---
+        const exportToPDF = () => {
+            if (!selectedNoteId) {
+                showMessageModal('Export Error', 'Please select a note.');
+                return;
+            }
+
+            const currentNote = notes.find(n => n.id === selectedNoteId);
+            if (!currentNote) return;
+
+            const title = (currentNote.title || 'Untitled Note').trim();
+            const fileName = `${title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
+            
+            // Get computed colors from the active theme
+            const computedStyle = getComputedStyle(document.body);
+            // We use the variables defined in :root or [data-theme]
+            const bgColor = computedStyle.getPropertyValue('--bg-body').trim();
+            const textColor = computedStyle.getPropertyValue('--text-main').trim();
+            const borderColor = computedStyle.getPropertyValue('--border-color').trim();
+            const metaColor = computedStyle.getPropertyValue('--text-muted').trim();
+
+            const tempDiv = document.createElement('div');
+            
+            tempDiv.className = 'pdf-container'; 
+            Object.assign(tempDiv.style, {
+                fontFamily: 'sans-serif',
+                backgroundColor: bgColor,
+                color: textColor,
+                width: '800px',
+                minHeight: '1150px', 
+                padding: '40px',
+                boxSizing: 'border-box'
+            });
+
+            // Sanitize content again before creating the PDF DOM, ensuring images are included
+            const sanitizedContent = DOMPurify.sanitize(currentNote.content || '<em>(Note is empty)</em>', {ADD_TAGS: ['img', 'p', 'div', 'h1', 'h2', 'ul', 'li', 'blockquote'], ADD_ATTR: ['src', 'alt', 'style', 'width', 'height', 'onerror']});
+
+
+            tempDiv.innerHTML = `
+                <div style="padding-bottom: 20px; border-bottom: 2px solid ${borderColor}; margin-bottom: 30px;">
+                    <h1 style="font-size: 28px; font-weight: bold; margin-bottom: 10px; color: ${textColor};">${title}</h1>
+                    <p style="font-size: 14px; color: ${metaColor};">Last Saved: ${new Date(currentNote.updatedAt).toLocaleString()}</p>
+                </div>
+                <div id="pdf-content-body" style="font-size: 16px; line-height: 1.6; color: ${textColor};">
+                    ${sanitizedContent}
+                </div>
+            `;
+            
+            // Adjust image width for PDF layout (max 100% of container)
+            tempDiv.querySelectorAll('img').forEach(img => {
+                img.style.maxWidth = '100%';
+                img.style.height = 'auto';
+            });
+
+            document.body.appendChild(tempDiv); 
+            
+            // Fix internal text colors (for elements created by execCommand like h1/h2)
+            const contentBody = tempDiv.querySelector('#pdf-content-body');
+            if (contentBody) {
+                contentBody.querySelectorAll('*').forEach(el => {
+                    // Ensure text elements respect the theme color if they didn't inherit it
+                    if (el.style.color === '' || el.tagName !== 'IMG') el.style.color = textColor; 
+                });
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+            
+            doc.html(tempDiv, {
+                callback: function (pdfDoc) {
+                    document.body.removeChild(tempDiv);
+                    showConfirmModal('Confirm Download', `Save "${fileName}"?`, () => {
+                        pdfDoc.save(fileName);
+                        showMessageModal('Success', 'File downloaded.');
+                    });
+                },
+                x: 0, y: 0, width: 210, windowWidth: 800, autoPaging: 'text'
+            });
+        };
+
+        // --- Rich Text Editing Functions ---
+
+        const applyFormat = (command, value = null) => {
+            noteContentEditor.focus(); 
+            document.execCommand(command, false, value);
+        };
+        
+        const updateToolbarState = () => {
+            const editor = noteContentEditor;
+            const selection = window.getSelection();
+            if (!editor || !selection || !selection.focusNode) return;
+
+            document.querySelectorAll('.toolbar-btn').forEach(btn => btn.classList.remove('active-format'));
+
+            let currentElement = selection.focusNode;
+            if (currentElement.nodeType === 3) currentElement = currentElement.parentElement;
+            if (!currentElement) return;
+
+            if (document.queryCommandState('bold')) document.getElementById('bold-btn').classList.add('active-format');
+            if (document.queryCommandState('italic')) document.getElementById('italic-btn').classList.add('active-format');
+            if (document.queryCommandState('underline')) document.getElementById('underline-btn').classList.add('active-format');
+            if (document.queryCommandState('strikeThrough')) document.getElementById('strikethrough-btn').classList.add('active-format');
+            
+            const blockContainer = currentElement.closest('H1, H2, BLOCKQUOTE, UL, OL');
+            if (blockContainer) {
+                switch (blockContainer.tagName) {
+                    case 'H1': document.getElementById('h1-btn').classList.add('active-format'); break;
+                    case 'H2': document.getElementById('h2-btn').classList.add('active-format'); break;
+                    case 'BLOCKQUOTE': document.getElementById('quote-btn').classList.add('active-format'); break;
+                    case 'UL': case 'OL': document.getElementById('list-btn').classList.add('active-format'); break;
+                }
+            }
+        };
+
+        // NEW: Handles the file input change event
+        const handleImageUpload = (event) => {
+            const file = event.target.files[0];
+            
+            if (!file) {
+                return;
+            }
+            
+            if (!file.type.startsWith('image/')) {
+                showMessageModal('Upload Error', 'Please select a valid image file.');
+                return;
+            }
+            
+            // Max file size check (e.g., 5MB - Base64 can get very large quickly!)
+            const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+            if (file.size > MAX_SIZE) {
+                showMessageModal('Upload Error', 'Image file is too large (Max 5MB for local storage).');
+                return;
+            }
+
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                const base64DataUrl = e.target.result;
+                insertImage(base64DataUrl);
+                // Clear the file input so the same file can be selected again
+                event.target.value = ''; 
+            };
+
+            reader.onerror = () => {
+                showMessageModal('Read Error', 'Could not read the file.');
+                // Clear the file input
+                event.target.value = '';
+            };
+
+            reader.readAsDataURL(file);
+        };
+
+
+        const insertImage = (dataUrl) => {
+            if (!selectedNoteId) {
+                showMessageModal('Error', 'Please select or create a note before inserting content.');
+                return;
+            }
+            
+            // Restore selection if focus was lost during file selection
+            restoreSelection();
+            
+            // 1. Insert the image using execCommand with the base64 URL
+            document.execCommand('insertImage', false, dataUrl);
+            
+            // 2. Clean up the inserted <img> tag
+            const images = noteContentEditor.getElementsByTagName('img');
+            if (images.length > 0) {
+                const lastImage = images[images.length - 1];
+                
+                // If it's a new image, apply styling
+                if (lastImage.src === dataUrl) {
+                    // Apply inline styles for responsiveness and appearance (matching CSS)
+                    lastImage.style.maxWidth = '100%';
+                    lastImage.style.height = 'auto';
+                    lastImage.style.borderRadius = '8px';
+                    lastImage.style.margin = '10px 0';
+                    lastImage.style.outline = '2px solid var(--border-color)';
+                    
+                    // Add error handler for safety (though base64 should not fail)
+                    lastImage.setAttribute('alt', 'Embedded Local Image');
+                }
+
+                // 3. Manually trigger a save to store the image HTML
+                const currentNote = notes.find(n => n.id === selectedNoteId);
+                if (currentNote) {
+                    debouncedSaveNote(currentNote.title || '', noteContentEditor.innerHTML);
+                }
+            }
+        };
+
+        // --- Initialization ---
+        const initApp = () => {
+            initTheme();
+            const initialNotes = loadNotesFromStorage();
+            notes = initialNotes; 
+            sortAndSetNotes(initialNotes);
+            
+            // Event Listeners
+            document.getElementById('new-note-btn').addEventListener('click', createNewNote);
+            document.getElementById('delete-note-btn').addEventListener('click', deleteSelectedNote);
+            document.getElementById('export-pdf-btn').addEventListener('click', exportToPDF);
+            
+            // The image button now triggers the file input click
+            // document.getElementById('insert-image-btn').addEventListener('click', showInsertImageModal); 
+            
+            // Event listeners to save/restore text selection
+            noteContentEditor.addEventListener('focusout', saveSelection);
+            
+            noteTitleInput.addEventListener('input', (e) => {
+                if (!selectedNoteId) return;
+                debouncedSaveNote(e.target.value, notes.find(n => n.id === selectedNoteId)?.content || '');
+            });
+
+            noteContentEditor.addEventListener('input', () => {
+                if (!selectedNoteId) return;
+                const newContent = noteContentEditor.innerHTML; 
+                debouncedSaveNote(notes.find(n => n.id === selectedNoteId)?.title || '', newContent);
+                wordCountDisplay.textContent = `Words: ${getWordCount(newContent)}`;
+            });
+            
+            document.addEventListener('selectionchange', updateToolbarState);
+            noteContentEditor.addEventListener('mouseup', updateToolbarState);
+            noteContentEditor.addEventListener('keyup', updateToolbarState);
+            document.getElementById('toggle-sidebar').addEventListener('click', () => sidebarEl.classList.toggle('hidden-mobile'));
+            document.getElementById('editor-area').addEventListener('click', () => {
+                if (window.innerWidth < 640 && !sidebarEl.classList.contains('hidden-mobile')) sidebarEl.classList.add('hidden-mobile');
+            });
+            
+            // Default Modal Listener
+            modalConfirmBtn.addEventListener('click', hideModal);
+        };
+        
+        initApp();
+    </script>
+</body>
+</html>
